@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "tsx ./src/server.ts",
+    "ingest": "tsx ./src/ingest.ts",
+    "query": "tsx ./src/query.ts",
+    "typecheck": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -18,9 +20,14 @@
     }
   },
   "type": "module",
+  "pnpm": {
+    "onlyBuiltDependencies": ["onnxruntime-node"]
+  },
   "dependencies": {
     "@qdrant/js-client-rest": "^1.19.0",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "fastembed": "^2.1.0",
+    "pdfjs-dist": "^6.2.108"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
