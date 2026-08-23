@@ -20,14 +20,11 @@
     }
   },
   "type": "module",
-  "pnpm": {
-    "onlyBuiltDependencies": ["onnxruntime-node"]
-  },
   "dependencies": {
     "@qdrant/js-client-rest": "^1.19.0",
     "dotenv": "^17.4.2",
     "fastembed": "^2.1.0",
-    "pdfjs-dist": "^6.2.108"
+    "pdf-parse": "^2.4.5"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

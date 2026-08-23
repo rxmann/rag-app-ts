@@ -3,7 +3,7 @@ import type {
   RetrievedChunk,
   SearchOptions,
   Vector,
-} from "../types.js";
+} from "../types/types.js";
 
 /**
  * The only vector-store operations this application needs. Nothing in here is

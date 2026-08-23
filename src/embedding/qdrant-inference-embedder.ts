@@ -1,5 +1,5 @@
-import { EMBEDDING_MODEL, VECTOR_SIZE } from "../config.js";
-import type { Vector } from "../types.js";
+import { EMBEDDING_MODEL, VECTOR_SIZE } from "../config/config.js";
+import type { Vector } from "../types/types.js";
 import type { Embedder } from "./embedder.js";
 
 /**

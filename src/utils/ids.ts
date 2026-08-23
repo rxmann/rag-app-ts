@@ -6,10 +6,9 @@ import { createHash } from "node:crypto";
  * overwrites the same points instead of duplicating them.
  */
 export const chunkId = (
-  documentId: string,
   pageNumber: number,
   chunkIndex: number,
-): string => uuidFromString(`${documentId}:${pageNumber}:${chunkIndex}`);
+): string => uuidFromString(`${pageNumber}:${chunkIndex}`);
 
 /** Stable id for a document, derived from its filename and owning gym. */
 export const documentIdFor = (gymId: string, filename: string): string =>

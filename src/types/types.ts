@@ -17,19 +17,16 @@ export const isDenseVector = (vector: Vector): vector is number[] =>
 
 /** Everything we know about a chunk, stored as the payload alongside its vector. */
 export type ChunkMetadata = {
-  documentId: string;
   filename: string;
-  /** Tenant. One collection holds many gyms; this is how we tell them apart. */
-  gymId: string;
-  pageNumber: number;
-  chunkIndex: number;
+  pageNumber?: number;
+  chunkIndex?: number;
   text: string;
 };
 
 /** A chunk ready to be written to a vector database. */
 export type DocumentChunk = {
   id: string;
-  vector: Vector;
+  text: string;
   metadata: ChunkMetadata;
 };
 
@@ -42,6 +39,5 @@ export type RetrievedChunk = {
 
 export type SearchOptions = {
   limit?: number;
-  gymId?: string;
   documentId?: string;
 };
