@@ -1,5 +1,5 @@
 import type {Embedder} from "../embedding/embedder.js";
-import type {RetrievedChunk, SearchOptions} from "../types/types.js";
+import type {RetrievedChunk, SearchOptions} from "../types/vector-types.js";
 import type {VectorDB} from "../vector-db/vector-db.js";
 
 /**

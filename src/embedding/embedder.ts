@@ -1,5 +1,5 @@
 import { EMBEDDING_PROVIDER } from "../config/config.js";
-import type { Vector } from "../types/types.js";
+import type { Vector } from "../types/vector-types.js";
 import { LocalEmbedder } from "./local-embedder.js";
 import { QdrantInferenceEmbedder } from "./qdrant-inference-embedder.js";
 

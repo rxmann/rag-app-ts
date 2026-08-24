@@ -1,7 +1,7 @@
 import {basename} from "node:path";
 import {CHUNK_OVERLAP, CHUNK_SIZE} from "../config/config.js";
 import type {Embedder} from "../embedding/embedder.js";
-import type {ChunkMetadata, DocumentChunk} from "../types/types.js";
+import type {ChunkMetadata, Vector} from "../types/vector-types.js";
 import {chunkText} from "../utils/chunking.js";
 import {chunkId} from "../utils/ids.js";
 import {extractPdfPages, type PdfPage} from "../utils/pdf.js";
@@ -62,7 +62,11 @@ export class DocumentIngestionService {
         );
     }
 
-    private async embed(metadata: ChunkMetadata[]): Promise<DocumentChunk[]> {
+    private async embed(metadata: ChunkMetadata[]): Promise<{
+        id: string;
+        vector: Vector;
+        metadata: ChunkMetadata
+    }[]> {
         const vectors = await this.embedder.embedDocuments(
             metadata.map((chunk) => chunk.text),
         );
@@ -80,7 +84,7 @@ export class DocumentIngestionService {
         });
     }
 
-    private async store(chunks: DocumentChunk[]): Promise<void> {
+    private async store(chunks: { id: string; vector: Vector; metadata: ChunkMetadata }[]): Promise<void> {
         await this.db.ensureCollection(this.collection, this.embedder.dimensions);
         await this.db.upsert(this.collection, chunks);
     }

@@ -7,7 +7,7 @@ import type {
     RetrievedChunk,
     SearchOptions,
     Vector,
-} from "../types/types.js";
+} from "../types/vector-types.js";
 import type {VectorDB} from "./vector-db.js";
 
 /** Points sent per upsert request. */
@@ -34,7 +34,7 @@ export class QdrantVectorDB implements VectorDB {
         }
     }
 
-    async upsert(collection: string, chunks: DocumentChunk[]) {
+    async upsert(collection: string, chunks: { id: string; vector: Vector; metadata: ChunkMetadata }[]): Promise<void> {
         for (let i = 0; i < chunks.length; i += UPSERT_BATCH_SIZE) {
             const batch = chunks.slice(i, i + UPSERT_BATCH_SIZE);
             await this.client.upsert(collection, {

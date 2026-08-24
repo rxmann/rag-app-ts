@@ -1,9 +1,10 @@
 import type {
-  DocumentChunk,
-  RetrievedChunk,
-  SearchOptions,
-  Vector,
-} from "../types/types.js";
+    ChunkMetadata,
+    DocumentChunk,
+    RetrievedChunk,
+    SearchOptions,
+    Vector,
+} from "../types/vector-types.js";
 
 /**
  * The only vector-store operations this application needs. Nothing in here is
@@ -17,7 +18,7 @@ export interface VectorDB {
   /** Create the collection if it does not exist yet. Safe to call repeatedly. */
   ensureCollection(collection: string, vectorSize: number): Promise<void>;
 
-  upsert(collection: string, chunks: DocumentChunk[]): Promise<void>;
+    upsert(collection: string, chunks: { id: string; vector: Vector; metadata: ChunkMetadata }[]): Promise<void>;
 
   search(
     collection: string,
