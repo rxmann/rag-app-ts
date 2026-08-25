@@ -1,0 +1,7 @@
+body { font-family: sans-serif; padding: 20px; line-height: 1.5; }
+.container { max-width: 600px; margin: 0 auto; }
+textarea { width: 100%; margin-bottom: 10px; }
+button { padding: 10px 20px; cursor: pointer; }
+.hidden { display: none; }
+.error { color: red; margin-top: 10px; }
+#result { margin-top: 20px; border-top: 1px solid #ccc; padding-top: 20px; }

@@ -1,6 +1,6 @@
 import "dotenv/config";
 import Groq from "groq-sdk";
-import {GroqLLM} from "./grok-llm.js";
+import {GroqLLM} from "./groq-llm.js";
 import type {LLM} from "./llm.types.js";
 
 export const createLLM = (): LLM => {
