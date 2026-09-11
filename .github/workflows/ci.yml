@@ -5,7 +5,7 @@ on:
     branches: [master]
 
 jobs:
-  build:
+  typecheck:
     runs-on: ubuntu-latest
 
     steps:
@@ -26,7 +26,8 @@ jobs:
       - name: Typecheck
         run: pnpm run typecheck
 
-  run:
+  deploy:
+    needs: [typecheck]
     runs-on: ubuntu-latest
 
     steps:
