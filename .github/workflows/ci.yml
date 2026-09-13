@@ -1,50 +1,36 @@
 name: CI
-
 on:
+  workflow_dispatch:
+      branches: [ master, "feature-*" ]
+  issues:
+    branches: [ master, "feature-*" ]
   push:
-    branches: [master]
-
+    branches: [ master, "feature-*" ]
 jobs:
   typecheck:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-
       - name: Setup pnpm
         run: |
           corepack enable
           corepack prepare pnpm@11 --activate
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
       - name: Typecheck
         run: pnpm run typecheck
-
-  deploy:
-    needs: [typecheck]
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: Setup pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@11 --activate
-
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
-
       - name: Run
         run: pnpm run build
-
       - name: Deploy
-        run: echo "Deloying rag app..."
+        run: echo "Deploying rag app..."
+  deploy:
+    # needs: [ typecheck ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Output EventDetails
+        run: echo "${{ toJson(github.event) }}"
