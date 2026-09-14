@@ -5,7 +5,7 @@ on:
   issues:
     branches: [ master, "feature-*" ]
   push:
-    branches: [ master, "feature-*" ]
+    branches: [ master ]
 jobs:
   typecheck:
     runs-on: ubuntu-latest

@@ -20,6 +20,9 @@
                   <Item>
                     <option name="path" value=".github/workflows/output.yml" />
                   </Item>
+                  <Item>
+                    <option name="path" value=".github/workflows/artifact.yml" />
+                  </Item>
                 </list>
               </option>
             </SchemaInfo>
