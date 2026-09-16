@@ -1,0 +1,24 @@
+name: Output Workflow
+on:
+  workflow_dispatch:
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    outputs:
+      build_tag: ${{ steps.tagger.outputs.build_tag }}
+    steps:
+      - name: Setup Environment
+        run: echo "Setting up environment"
+      - name: Build Application
+        run: echo "Building application"
+      - name: Save Build Version
+        id: tagger
+        run: echo "build_tag=v1.2.0" >> $GITHUB_OUTPUT
+  consume:
+    needs: [publish]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consume Outputs
+        run: |
+          echo "Printing the build_tag"
+          echo "${{ needs.publish.outputs.build_tag }}"
