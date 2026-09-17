@@ -1,11 +1,9 @@
 name: CI
 on:
   workflow_dispatch:
-      branches: [ master, "feature-*" ]
+    branches: [master, "feature-*"]
   issues:
-    branches: [ master, "feature-*" ]
-  push:
-    branches: [ master ]
+    branches: [master, "feature-*"]
 jobs:
   typecheck:
     runs-on: ubuntu-latest
