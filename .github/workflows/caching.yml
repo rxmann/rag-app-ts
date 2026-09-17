@@ -1,13 +1,26 @@
 name: Cache Dependencies
-on: [workflow_dispatch, push]
+
+on:
+  workflow_dispatch:
+  push:
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11 --activate
+
       - name: Get pnpm store
-        shell: bash
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
 
@@ -17,27 +30,32 @@ jobs:
           path: ${{ env.STORE_PATH }}
           key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: Setup pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@11 --activate
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
       - name: Run
         run: pnpm run build
+
       - name: Deploy
         run: echo "Deploying rag app..."
+
   deploy:
     needs: [build]
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11 --activate
+
       - name: Get pnpm store
-        shell: bash
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
 
@@ -47,16 +65,11 @@ jobs:
           path: ${{ env.STORE_PATH }}
           key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: Setup pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@11 --activate
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
       - name: Run
         run: pnpm run build
+
       - name: Deploy
         run: echo "Deploying rag app..."
