@@ -2,7 +2,6 @@ name: Cache Dependencies
 
 on:
   workflow_dispatch:
-  push:
 
 jobs:
   build:
