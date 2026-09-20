@@ -1,9 +1,8 @@
 name: CI
 on:
   workflow_dispatch:
-    branches: [master, "feature-*"]
-  issues:
-    branches: [master, "feature-*"]
+    # Manual runs select a branch in the UI; branches is not a valid filter here.
+# Earlier topic: issues can trigger workflows too, but does not support branches.
 jobs:
   typecheck:
     runs-on: ubuntu-latest
@@ -20,6 +19,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Typecheck
         run: pnpm run typecheck
+      # Deliberately repeated from the early lesson; later examples install once.
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
       - name: Run
@@ -27,8 +27,13 @@ jobs:
       - name: Deploy
         run: echo "Deploying rag app..."
   deploy:
+    # Without needs, this job can run in parallel with typecheck.
+    # Uncomment to make it wait for typecheck to succeed.
     # needs: [ typecheck ]
     runs-on: ubuntu-latest
     steps:
       - name: Output EventDetails
-        run: echo "${{ toJson(github.event) }}"
+        # Event text can contain quotes or shell syntax: pass it through env.
+        env:
+          EVENT_JSON: ${{ toJson(github.event) }}
+        run: printf '%s\n' "$EVENT_JSON"

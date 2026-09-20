@@ -1,140 +1,172 @@
-# GitHub Actions Notes
+# GitHub Actions learning notes
 
-## What is GitHub Actions?
+GitHub Actions runs automation defined in `.github/workflows/*.yml`. Common uses are CI (typecheck, test, build), CD (deployment), and repository automation. These files are ordered lessons: repeated setup and simulated deployment commands are intentional.
 
-GitHub Actions is a CI/CD platform built into GitHub that automates software workflows. It lets you run scripts (lint, test, build, deploy) in response to events like pushing code or creating a pull request.
+## Learning order
 
-Workflows are defined in YAML files under `.github/workflows/`.
+| File | Main concepts |
+| --- | --- |
+| [ci.yml](ci.yml) | Jobs, steps, runners, actions, event context, parallel jobs |
+| [secrets.yml](secrets.yml) | `env`, `vars`, `secrets`, environment configuration and precedence |
+| [outputs.yml](outputs.yml) | Step outputs, job outputs, `needs` |
+| [caching.yml](caching.yml) | Dependency caches, lockfile keys, `$GITHUB_ENV`, fresh runners |
+| [artifact.yml](artifact.yml) | Ordered jobs, uploading and downloading build files |
+| [conditions.yml](conditions.yml) | Job/step `if`, status functions, step failure tolerance |
+| [matrix.yml](matrix.yml) | Combinations, `include`, `exclude`, job failure tolerance |
+| [reusable.yml](reusable.yml) + [reuse-example.yml](reuse-example.yml) | Reusable workflow inputs, secrets, outputs and caller |
 
-## Where is it Used?
+## Running the lessons
 
-- **CI (Continuous Integration):** Run tests and lint on every push/PR
-- **CD (Continuous Deployment):** Deploy to production after merge to main
-- **Automation:** Schedule tasks, label issues, release packages
-- **Code Quality:** Type checking, formatting, security scans
+Only **reuse-example.yml**, the active topic, runs on `push`; it also supports manual runs. Other standalone examples use `workflow_dispatch`. The reusable definition uses only `workflow_call`. Move the `push` trigger when switching the active topic.
 
-## Basic Example
+For a manual run, open **Actions → workflow → Run workflow**, select a branch, and supply any inputs. The workflow must exist on the default branch for manual triggering to be available. Use the workflow file path to distinguish the two older workflows named `CI`.
 
-```yaml
-name: CI
-on: push
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: npm install
-      - run: npm test
-```
+The new examples require no application services or secrets. The caller produces `rag-app-r2-preview`. Optionally add a repository Actions secret named `DEMO_TOKEN` to observe secret availability without printing it. The conditions and experimental matrix examples deliberately fail a command to demonstrate tolerance.
 
-This workflow runs on every push, checks out the code, installs dependencies, and runs tests.
+Existing application examples use Node 24, Corepack and pnpm 11, install from `pnpm-lock.yaml`, and run the scripts in `package.json`. The secrets lesson also starts the application: configure its listed variables/secrets in the `prod` environment, including a valid `PORT` and service credentials. Its job-level `GROQ_MODEL` secret must be set to avoid overriding the workflow default with an empty value. Commands that only echo “Deploying” are placeholders, not real deployments.
 
-## Key Terminologies
+## Workflow basics
 
-### Workflow
+- **Workflow:** one YAML file containing triggers and jobs.
+- **Trigger (`on`):** the event that starts a workflow.
+- **Job:** steps sharing a runner. Jobs run in parallel unless linked by `needs`.
+- **Runner (`runs-on`):** the machine executing a job, such as `ubuntu-latest`.
+- **Step:** either a shell command (`run`) or an action (`uses`). Steps run in order.
+- **Action:** reusable step functionality, such as checkout or setting up Node.
+- **`name` vs `id`:** names are display labels; IDs let expressions reference steps and jobs.
 
-A YAML file in `.github/workflows/` defining an automated process. One repository can have multiple workflows.
+`actions/checkout@v4` downloads repository contents; `actions/setup-node@v4` selects Node. Checkout is unnecessary for the new examples because they do not read application files. On Ubuntu, multiline `run: |` commands execute in a shell; variables set only in that shell do not persist into another step.
 
-### Trigger (`on`)
+### Triggers
 
-The event that starts a workflow. Common triggers:
+| Trigger | Use / important restriction |
+| --- | --- |
+| `push` | Commit pushed; supports branch/path filters |
+| `pull_request` | PR activity; `branches` filters the PR's **target** branch |
+| `issues` | Issue activity; supports activity `types`, not branch filters |
+| `workflow_dispatch` | Manual run with optional typed inputs; no `branches` filter |
+| `workflow_call` | Another workflow calls this workflow |
+| `schedule` | Scheduled automation; cron uses UTC by default |
 
-| Trigger             | Description                            |
-| ------------------- | -------------------------------------- |
-| `push`              | Code pushed to a branch                |
-| `pull_request`      | PR opened or updated                   |
-| `workflow_dispatch` | Manual trigger from UI                 |
-| `schedule`          | Cron-based (e.g., `cron: '0 0 * * *'`) |
-
-Example with branches:
+Reference syntax (not additional active triggers in this repository):
 
 ```yaml
 on:
   push:
-    branches: [main, master]
+    branches: [master, 'feature-*']
+  pull_request:
+    branches: [master]
+  issues:
+    types: [opened]
+  schedule:
+    - cron: '0 0 * * *'
 ```
 
-### Job
+### Dependencies and runner isolation
 
-A group of steps running on the same runner. Multiple jobs run in parallel by default.
+`needs: [build]` waits for `build` to succeed by default and exposes its outputs/result. Failed or skipped dependencies normally skip downstream jobs unless a suitable `if` overrides that behavior. Each GitHub-hosted job starts on a fresh runner: `needs` does **not** transfer installed dependencies, environment variables, or files.
 
-```yaml
-jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps: [...]
-  test:
-    runs-on: ubuntu-latest
-    steps: [...]
-```
+In `ci.yml`, the commented-out `needs` deliberately leaves jobs independent. `artifact.yml` adds ordering and file transfer; `caching.yml` repeats setup to illustrate runner isolation.
 
-### Step
+## Expressions, contexts and environment values
 
-An individual task within a job. Can run a shell command or use a pre-built action.
+`${{ ... }}` evaluates an Actions expression. A step/job `if` generally permits omitting the wrapper; an expression beginning with `!` should use the wrapper to avoid YAML tag syntax.
 
-```yaml
-steps:
-  - name: Install deps
-    run: npm install
-  - uses: actions/checkout@v4
-```
+| Context / mechanism | Purpose |
+| --- | --- |
+| `github` | Event, repository and ref; `github.ref` can be `refs/heads/master` |
+| `runner` | Runner details, such as `runner.os` |
+| `env` | Workflow/job/step environment values |
+| `vars` | Non-secret configuration variables |
+| `secrets` | Sensitive configuration; do not print values |
+| `inputs` | Typed dispatch or reusable-workflow inputs |
+| `steps.ID.outputs.NAME` | Output of an earlier named step in this job |
+| `needs.JOB.outputs.NAME` | Output of a declared dependency |
+| `needs.JOB.result` | Dependency result: success, failure, cancelled or skipped |
+| `matrix` | Current matrix combination |
 
-### Runner
+The most specific `env` wins: **step → job → workflow**. `environment: prod` selects a GitHub environment, which can provide secrets/variables and approval rules; it is different from `env`.
 
-The virtual machine that executes jobs. Options: `ubuntu-latest`, `windows-latest`, `macos-latest`.
+Use `env` to pass expressions containing external text or secrets into shell commands, then quote shell variables, for example `printf '%s\n' "$EVENT_JSON"`. Directly interpolating event text into `run` can turn its contents into shell syntax. Missing secrets evaluate to an empty string. Secrets cannot be referenced directly in an `if`; for step conditions, map them into job-level `env` and check that value. Never put secrets in outputs or artifacts.
 
-### Actions
+### Environment files and outputs
 
-Reusable packages that perform common tasks. Referenced with `uses`.
+| Mechanism | Scope / example |
+| --- | --- |
+| `$GITHUB_ENV` | `echo "STORE_PATH=..." >> "$GITHUB_ENV"` makes a variable available to **subsequent** steps in the same job |
+| `$GITHUB_OUTPUT` | `echo "build_tag=v1.2.0" >> "$GITHUB_OUTPUT"` creates a named output on a step with an `id` |
+| Job `outputs` | Maps a step output so another job can read it via `needs` |
+| Workflow `outputs` | Maps a job output so a reusable workflow's caller can read it |
 
-Common actions:
+`outputs.yml` demonstrates step → job → downstream job. Outputs carry small values; artifacts carry files.
 
-- `actions/checkout@v4` - Check out repository code
-- `actions/setup-node@v4` - Set up Node.js
-- `actions/setup-python@v5` - Set up Python
+## Caching versus artifacts
 
-## Environment Variables
+| | Cache: `caching.yml` | Artifact: `artifact.yml` |
+| --- | --- | --- |
+| Purpose | Reuse dependencies to speed up installation | Transfer/preserve generated build files |
+| Actions | `actions/cache@v4` | `actions/upload-artifact@v4`, `actions/download-artifact@v4` |
+| Identifier | OS + lockfile hash in a cache key | Artifact name `build-files` |
+| Contents here | pnpm's download store | `dist` and `package.json` |
 
-```yaml
-env:
-  NODE_ENV: production
-steps:
-  - run: echo $NODE_ENV
-```
+`hashFiles('**/pnpm-lock.yaml')` changes when dependency definitions change, producing a new cache key. A matching cache restores the store; installation still runs to populate `node_modules`. On a miss, the cache action can save the store after a successful job. Optional `restore-keys` provide prefix fallbacks but are not used here.
 
-## Secrets
+Artifacts let `deploy` download the exact files built by `build`. Caching dependencies does not transfer build output, and neither mechanism shares a running process.
 
-Sensitive data stored in repository settings, accessed via `${{ secrets.NAME }}`.
+## Conditions and tolerated failures
 
-```yaml
-steps:
-  - run: echo ${{ secrets.API_KEY }}
-```
+Read [conditions.yml](conditions.yml) first, then the job-level example in [matrix.yml](matrix.yml).
 
-## Caching
+| Construct | Meaning |
+| --- | --- |
+| Job `if` | Skip an entire job; evaluated before matrix expansion, so do not use `matrix` here |
+| Step `if` | Run a step only when its condition matches |
+| `success()` | Earlier work succeeded; the implicit status check for most conditions |
+| `failure()` | Detect an earlier untolerated failure; useful for diagnostics |
+| `always()` | Run even after failure/cancellation; useful for short final reporting |
+| `${{ !cancelled() }}` | Run after success/failure but skip cancellation |
+| Step `continue-on-error: true` | Tolerate that step's failure and allow normal following steps |
+| Job `continue-on-error: true` | Allow that job to fail without failing the workflow run |
 
-Speed up workflows by caching dependencies:
+For a failed step with `continue-on-error: true`, `steps.ID.outcome` is `failure` but `steps.ID.conclusion` is `success`. Check **outcome** when reacting to a tolerated failure; `failure()` alone will not catch it. Job-level tolerance does not make every later step inside that job run after a failure: normal step status conditions still apply.
 
-```yaml
-- uses: actions/cache@v4
-  with:
-    path: ~/.npm
-    key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
-```
+By default the conditions lesson succeeds and skips failure diagnostics. Enable its boolean input to run the optional job. To practice the failure path, temporarily remove the step's `continue-on-error`: diagnostics and final reporting run, normal success steps skip, and the job fails.
 
-## Useful Commands
+## Matrix, include and exclude
 
-```yaml
-# Conditional steps
-- if: github.ref == 'refs/heads/main'
-  run: echo "Only on main"
+A matrix creates one job per combination of its dimensions. `matrix.yml` begins with two operating systems × two Node versions × one experimental flag: four combinations.
 
-# Matrix builds
-strategy:
-  matrix:
-    node-version: [18, 20, 22]
+- `exclude` removes Windows + Node 22.
+- The first `include` adds a `note` to the remaining original Ubuntu combinations without replacing their dimension values.
+- The second `include` cannot merge into an original combination without replacing values, so it adds an Ubuntu + Node 26 experimental job. Added combinations are not expanded by subsequent `include` entries.
 
-# Continue on error
-- run: npm test
-  continue-on-error: true
-```
+The resulting jobs are:
+
+| OS | Node | Experimental | Extra note |
+| --- | --- | --- | --- |
+| Ubuntu | 22 | false | Linux baseline |
+| Ubuntu | 24 | false | Linux baseline |
+| Windows | 24 | false | — |
+| Ubuntu | 26 | true | Experimental failure demo |
+
+`max-parallel: 2` limits concurrency. `fail-fast: false` keeps sibling jobs running after a required job fails; it does not tolerate that failure. `continue-on-error: ${{ matrix.experimental }}` tolerates only the experimental job. With `fail-fast: true`, a non-tolerated failure can cancel queued/running siblings; a tolerated experimental failure does not trigger that cancellation.
+
+## Reusable workflows
+
+[reusable.yml](reusable.yml) defines the contract under `on.workflow_call`. [reuse-example.yml](reuse-example.yml) calls it at **job level** using `uses`; the called workflow supplies its own runners and steps.
+
+- **Inputs:** `app_name` is a required string; `revision` is a number defaulting to `1`; `preview` is a boolean defaulting to `true`. Callers pass them through `with` using the declared types. Omit optional inputs to use defaults.
+- **Secrets:** the caller maps repository secret `DEMO_TOKEN` to the callee's optional `demo_token`. Secrets are passed separately from inputs. Declare `required: true` when missing credentials must prevent a call.
+- **Inheritance:** `secrets: inherit` can replace the explicit mapping for eligible calls within the same organization or enterprise. Explicit mapping makes dependencies easier to review. Secrets must be passed again at each hop in nested workflows.
+- **Environment secrets:** `workflow_call` cannot accept an environment declaration from the caller; an `environment` on a called job selects that environment's secrets. A same-named environment secret takes precedence over a passed secret.
+- **Outputs:** `$GITHUB_OUTPUT` → `jobs.label.outputs` → `on.workflow_call.outputs` → caller's `needs.release.outputs.release_label`.
+
+A local reference (`./.github/workflows/reusable.yml`) uses the caller's commit. Cross-repository references use `owner/repo/.github/workflows/file.yml@ref`; pin a commit SHA for a stable reference. Caller workflow-level `env` does not automatically propagate into the callee: use inputs. A reusable workflow also cannot elevate the caller's `GITHUB_TOKEN` permissions.
+
+## Quick revision
+
+- Order jobs with `needs`; transfer values with outputs and files with artifacts.
+- Use a cache for reusable dependency downloads; still install dependencies.
+- Use `if` to choose whether work runs and `continue-on-error` to tolerate a failure.
+- Use a matrix to vary configurations and a reusable workflow to share job logic.
+- Keep `push` on the active lesson and manual triggers on completed standalone lessons.

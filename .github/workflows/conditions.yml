@@ -1,0 +1,53 @@
+name: Conditions and tolerated failures
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_optional_job:
+        description: Run the optional job
+        type: boolean
+        default: false
+
+jobs:
+  conditions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Branch-specific step
+        # github.ref is a full ref, not just the branch name.
+        if: github.ref == 'refs/heads/master'
+        run: echo "This step runs only on master"
+
+      - name: Simulate an optional check failing
+        id: optional_check
+        # Step-level tolerance lets subsequent steps continue normally.
+        continue-on-error: true
+        run: exit 1
+
+      - name: Report the tolerated failure
+        # outcome is failure BEFORE tolerance; conclusion is success AFTER it.
+        # failure() alone would not detect this tolerated step failure.
+        if: steps.optional_check.outcome == 'failure'
+        run: echo "The optional check failed; the job can still succeed"
+
+      - name: Normal success path
+        # Most steps have an implicit success() condition already.
+        if: success()
+        run: echo "No untolerated failure so far"
+
+      - name: Failure diagnostics
+        # Skipped in this example. Remove continue-on-error above to observe it.
+        if: failure()
+        run: echo "An untolerated earlier step failed"
+
+      - name: Final status note
+        # Runs even after failure or cancellation; useful for short reporting.
+        # For work that should skip cancellation, prefer !cancelled().
+        if: always()
+        run: echo "Finished evaluating the steps"
+
+  optional:
+    # Job-level if skips the entire job. Boolean inputs need no string comparison.
+    if: inputs.run_optional_job
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Optional job enabled from the manual-run form"

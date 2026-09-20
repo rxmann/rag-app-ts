@@ -1,0 +1,66 @@
+name: Reusable release label
+
+# Called by another workflow; this file is not an independent manual/push entry.
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: Application name used in the release label
+        required: true
+        type: string
+      revision:
+        description: Numeric revision for this demonstration
+        type: number
+        default: 1
+      preview:
+        description: Append a preview suffix
+        type: boolean
+        default: true
+    secrets:
+      demo_token:
+        description: Optional demonstration token; never printed or exported
+        # Optional keeps the lesson runnable without repository setup.
+        # Use required: true when the real workflow cannot run without a secret.
+        required: false
+    outputs:
+      release_label:
+        description: Release label produced by the job
+        # Third hop: job output becomes a workflow output.
+        value: ${{ jobs.label.outputs.release_label }}
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    outputs:
+      # Second hop: promote the step output to a job output.
+      release_label: ${{ steps.create.outputs.release_label }}
+    steps:
+      - name: Create the release label
+        id: create
+        env:
+          APP_NAME: ${{ inputs.app_name }}
+          REVISION: ${{ inputs.revision }}
+          PREVIEW: ${{ inputs.preview }}
+        run: |
+          # Limit the name to one safe line for the GITHUB_OUTPUT format.
+          if [[ ! "$APP_NAME" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "app_name must contain only letters, numbers, underscores or hyphens"
+            exit 1
+          fi
+          label="${APP_NAME}-r${REVISION}"
+          if [[ "$PREVIEW" == "true" ]]; then
+            label="${label}-preview"
+          fi
+          # First hop: publish a named step output.
+          echo "release_label=$label" >> "$GITHUB_OUTPUT"
+
+      - name: Demonstrate secret availability
+        env:
+          DEMO_TOKEN: ${{ secrets.demo_token }}
+        run: |
+          # Check presence without revealing the value or calling a service.
+          if [[ -n "$DEMO_TOKEN" ]]; then
+            echo "The caller supplied the optional token"
+          else
+            echo "No token supplied; continuing the local demonstration"
+          fi

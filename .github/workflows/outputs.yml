@@ -3,6 +3,7 @@ on: [workflow_dispatch]
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Promote a named step output to a job output for downstream jobs.
     outputs:
       build_tag: ${{ steps.tagger.outputs.build_tag }}
     steps:
@@ -12,8 +13,10 @@ jobs:
         run: echo "Building application"
       - name: Save Build Version
         id: tagger
-        run: echo "build_tag=v1.2.0" >> $GITHUB_OUTPUT
+        # id: tagger is the key used by steps.tagger.outputs above.
+        run: echo "build_tag=v1.2.0" >> "$GITHUB_OUTPUT"
   consume:
+    # needs both waits for publish and exposes its outputs.
     needs: [publish]
     runs-on: ubuntu-latest
     steps:

@@ -1,7 +1,7 @@
 name: CI
 on:
   workflow_dispatch:
-    branches: ["feature-*"]
+    # workflow_dispatch does not support branches; choose a branch in the UI.
 jobs:
   typecheck:
     runs-on: ubuntu-latest
@@ -19,6 +19,7 @@ jobs:
       - name: Typecheck
         run: pnpm run typecheck
   build:
+    # needs orders jobs; it does not share files between their runners.
     needs: [typecheck]
     runs-on: ubuntu-latest
     steps:
@@ -36,6 +37,7 @@ jobs:
         run: pnpm run build
       - name: Deploy
         run: echo "Deploying rag app..."
+      # Artifacts transfer generated files between jobs (or let you download them).
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -47,6 +49,7 @@ jobs:
     needs: [build]
     runs-on: ubuntu-latest
     steps:
+      # This fresh runner receives the files uploaded by build.
       - name: Get upload artifacts
         uses: actions/download-artifact@v4
         with:

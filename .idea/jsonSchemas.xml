@@ -23,6 +23,18 @@
                   <Item>
                     <option name="path" value=".github/workflows/artifact.yml" />
                   </Item>
+                  <Item>
+                    <option name="path" value=".github/workflows/conditions.yml" />
+                  </Item>
+                  <Item>
+                    <option name="path" value=".github/workflows/matrix.yml" />
+                  </Item>
+                  <Item>
+                    <option name="path" value=".github/workflows/reusable.yml" />
+                  </Item>
+                  <Item>
+                    <option name="path" value=".github/workflows/reuse-example.yml" />
+                  </Item>
                 </list>
               </option>
             </SchemaInfo>

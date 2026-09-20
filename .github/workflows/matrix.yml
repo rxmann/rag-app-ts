@@ -1,0 +1,45 @@
+name: Matrix combinations
+
+on: [workflow_dispatch]
+
+jobs:
+  check:
+    runs-on: ${{ matrix.os }}
+    # Job-level tolerance: the experimental job may fail without failing the run.
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      # Keep other combinations running if a required combination fails.
+      # With true, a non-tolerated failure can cancel queued/running matrix jobs.
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [22, 24]
+        experimental: [false]
+        # Remove one combination from the original Cartesian product.
+        exclude:
+          - os: windows-latest
+            node: 22
+        include:
+          # Adds metadata to both remaining original Ubuntu combinations.
+          - os: ubuntu-latest
+            note: Linux baseline
+          # Cannot merge without replacing original values: adds a new job.
+          - os: ubuntu-latest
+            node: 26
+            experimental: true
+            note: Experimental failure demo
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Inspect the runtime
+        run: node --version
+      - name: Show matrix metadata
+        env:
+          MATRIX_NOTE: ${{ matrix.note }}
+        run: node -e 'console.log(process.env.MATRIX_NOTE || "No extra metadata")'
+      - name: Simulate an experimental failure
+        if: matrix.experimental
+        # Deliberate failure to demonstrate job-level continue-on-error.
+        run: node -e 'process.exit(1)'

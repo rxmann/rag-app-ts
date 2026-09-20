@@ -19,10 +19,13 @@ jobs:
           corepack enable
           corepack prepare pnpm@11 --activate
 
+      # GITHUB_ENV makes STORE_PATH available to subsequent steps in this job.
       - name: Get pnpm store
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
 
+      # Cache the download store; install still runs to create node_modules.
+      # A changed lockfile produces a new cache key.
       - name: Cache pnpm
         uses: actions/cache@v4
         with:
@@ -38,6 +41,8 @@ jobs:
       - name: Deploy
         run: echo "Deploying rag app..."
 
+  # Intentional repetition: each job has a fresh runner. Compare artifact.yml
+  # for passing build files, and reusable.yml for sharing workflow logic.
   deploy:
     needs: [build]
     runs-on: ubuntu-latest
@@ -54,10 +59,13 @@ jobs:
           corepack enable
           corepack prepare pnpm@11 --activate
 
+      # GITHUB_ENV makes STORE_PATH available to subsequent steps in this job.
       - name: Get pnpm store
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
 
+      # Cache the download store; install still runs to create node_modules.
+      # A changed lockfile produces a new cache key.
       - name: Cache pnpm
         uses: actions/cache@v4
         with:

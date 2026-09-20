@@ -1,0 +1,29 @@
+name: Call the reusable workflow
+
+# Active learning topic: move push to the next example when changing topics.
+on: [push, workflow_dispatch]
+
+jobs:
+  release:
+    # Reusable workflows are called at JOB level, not inside steps.
+    # A local reference uses the caller's commit; no @branch suffix is needed.
+    uses: ./.github/workflows/reusable.yml
+    with:
+      app_name: rag-app
+      revision: 2
+      preview: true
+    secrets:
+      # Optional: create DEMO_TOKEN in repository Actions secrets to try this.
+      demo_token: ${{ secrets.DEMO_TOKEN }}
+    # Alternative for eligible same-organization/enterprise calls:
+    # secrets: inherit
+    # Replace the mapping above to try it; it passes all available caller secrets.
+
+  consume:
+    needs: [release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Use the reusable workflow output
+        env:
+          RELEASE_LABEL: ${{ needs.release.outputs.release_label }}
+        run: echo "Prepared release label $RELEASE_LABEL"
