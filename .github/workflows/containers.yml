@@ -1,0 +1,87 @@
+name: Containers and service containers
+
+on: [workflow_dispatch]
+
+jobs:
+  # 1. Host runner connecting to a service container:
+  # When a job runs directly on the runner host (no job-level container:),
+  # the service container runs in Docker while steps run directly on the VM.
+  # Communication requires port mapping (e.g. 6379:6379) and uses localhost / 127.0.0.1.
+  host_runner_to_service:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        # On host runners, map the container port to the host runner VM.
+        ports:
+          - 6379:6379
+        # Optional health check ensures the service is ready before steps begin.
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Communicate with Redis from host runner
+        # Steps run directly on the host VM, so they reach the service via localhost.
+        run: |
+          node -e "
+            const net = require('net');
+            const client = net.createConnection({ host: '127.0.0.1', port: 6379 }, () => {
+              console.log('Connected to Redis service via localhost:6379');
+              client.write('PING\r\n');
+            });
+            client.on('data', (data) => {
+              console.log('Redis response on host:', data.toString().trim());
+              client.end();
+            });
+          "
+
+  # 2. Running the job inside a container:
+  # When container: is set on the job, GitHub Actions runs all steps
+  # inside the specified container image on a Linux runner.
+  job_in_container:
+    runs-on: ubuntu-latest
+    container:
+      image: node:24-alpine
+    steps:
+      - name: Inspect container environment
+        # All steps in this job execute inside the node:24-alpine container.
+        run: |
+          echo "Operating system info inside container:"
+          cat /etc/os-release
+          echo "Node version inside container: $(node --version)"
+
+  # 3. Container job connecting to a service container:
+  # When the job runs in a container, GitHub Actions places both the job container
+  # and the service container on the same Docker bridge network.
+  # Communication uses the service label as the hostname ('redis') and its internal port.
+  # Host port mapping is NOT required and localhost does not reach the service.
+  container_to_service:
+    runs-on: ubuntu-latest
+    container:
+      image: node:24-alpine
+    services:
+      redis:
+        image: redis:7-alpine
+        # Note: No host port mapping needed; accessible on the Docker network directly.
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Communicate with Redis from container job
+        # Steps run inside the job container; they address the service by its hostname 'redis'.
+        run: |
+          node -e "
+            const net = require('net');
+            const client = net.createConnection({ host: 'redis', port: 6379 }, () => {
+              console.log('Connected to Redis service via hostname: redis:6379');
+              client.write('PING\r\n');
+            });
+            client.on('data', (data) => {
+              console.log('Redis response inside container job:', data.toString().trim());
+              client.end();
+            });
+          "

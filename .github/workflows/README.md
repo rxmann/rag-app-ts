@@ -14,6 +14,7 @@ GitHub Actions runs automation defined in `.github/workflows/*.yml`. Common uses
 | [conditions.yml](conditions.yml) | Job/step `if`, status functions, step failure tolerance |
 | [matrix.yml](matrix.yml) | Combinations, `include`, `exclude`, job failure tolerance |
 | [reusable.yml](reusable.yml) + [reuse-example.yml](reuse-example.yml) | Reusable workflow inputs, secrets, outputs and caller |
+| [containers.yml](containers.yml) | Job containers, service containers, host-to-service and container-to-service networking |
 
 ## Running the lessons
 
@@ -163,10 +164,25 @@ The resulting jobs are:
 
 A local reference (`./.github/workflows/reusable.yml`) uses the caller's commit. Cross-repository references use `owner/repo/.github/workflows/file.yml@ref`; pin a commit SHA for a stable reference. Caller workflow-level `env` does not automatically propagate into the callee: use inputs. A reusable workflow also cannot elevate the caller's `GITHUB_TOKEN` permissions.
 
+## Containers and service containers
+
+[containers.yml](containers.yml) covers containerized job execution and service containers. Container jobs and service containers require Linux-based runners (`ubuntu-latest`).
+
+| Concept | Mechanism / Scope | Network Communication |
+| --- | --- | --- |
+| Job container | `container: <image>` at job level; all steps run inside the container | Accesses other service containers on the same Docker bridge network by service name |
+| Service container | `services.<name>: image: <image>` | Provides dependency services (e.g., databases, caches) for the job |
+| Host to service | Host runner (no job `container:`) + `services` | Runner connects via `localhost:<mapped_port>` (e.g. `127.0.0.1:6379`). Port mapping under `ports:` is **mandatory**. |
+| Container to service | Job `container:` + `services` | Steps connect directly via service label hostname (e.g. `redis:6379`). Host port mapping is **unnecessary**; `localhost` refers to the job container itself, not the service. |
+
+- **Service health checks:** Use `options` on service definitions (e.g. `--health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5`) so GitHub Actions blocks step execution until the service container is healthy and ready to accept connections.
+- **Docker network lifecycle:** GitHub Actions automatically creates a shared Docker bridge network for the job when service containers or job containers are declared, and cleans them up after the job finishes.
+
 ## Quick revision
 
 - Order jobs with `needs`; transfer values with outputs and files with artifacts.
 - Use a cache for reusable dependency downloads; still install dependencies.
 - Use `if` to choose whether work runs and `continue-on-error` to tolerate a failure.
 - Use a matrix to vary configurations and a reusable workflow to share job logic.
+- Use container jobs for custom execution environments and service containers for dependencies, noting host-to-service (`localhost`) vs container-to-service (service name) networking.
 - Keep `push` on the active lesson and manual triggers on completed standalone lessons.
