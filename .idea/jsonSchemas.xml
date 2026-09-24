@@ -35,6 +35,28 @@
                   <Item>
                     <option name="path" value=".github/workflows/reuse-example.yml" />
                   </Item>
+                  <Item>
+                    <option name="path" value=".github/workflows/secrets.yml" />
+                  </Item>
+                  <Item>
+                    <option name="path" value=".github/workflows/outputs.yml" />
+                  </Item>
+                </list>
+              </option>
+            </SchemaInfo>
+          </value>
+        </entry>
+        <entry key="package.json">
+          <value>
+            <SchemaInfo>
+              <option name="name" value="package.json" />
+              <option name="relativePathToSchema" value="https://www.schemastore.org/package.json" />
+              <option name="applicationDefined" value="true" />
+              <option name="patterns">
+                <list>
+                  <Item>
+                    <option name="path" value="package.json" />
+                  </Item>
                 </list>
               </option>
             </SchemaInfo>

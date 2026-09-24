@@ -1,7 +1,7 @@
 name: Call the reusable workflow
 
 # Active learning topic: move push to the next example when changing topics.
-on: [push, workflow_dispatch]
+on: [workflow_dispatch]
 
 jobs:
   release:

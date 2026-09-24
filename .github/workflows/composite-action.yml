@@ -1,0 +1,167 @@
+# GitHub discovers workflows only directly inside .github/workflows.
+# Move this file up one directory to enable manual runs; this is a workflow,
+# not a composite action definition (which would use action.yml and runs).
+name: Composite CI/CD Example
+on: [ push, workflow_dispatch ]
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11 --activate
+      - name: Get pnpm store
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+      # Cache the pnpm store, then install to recreate node_modules on each runner.
+      - name: Cache pnpm
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm run typecheck
+      - name: Test (placeholder script)
+        id: tests
+        # package.json currently exits 1; remove tolerance once real tests exist.
+        continue-on-error: true
+        run: pnpm run test
+      - name: Report tolerated test failure
+        if: steps.tests.outcome == 'failure'
+        run: echo "The placeholder test failed; this example can continue."
+      - name: Failure diagnostics
+        if: failure()
+        run: echo "Dependency installation or typecheck failed."
+
+  build:
+    needs: [ checks ]
+    if: success()
+    runs-on: ubuntu-latest
+    outputs:
+      build_tag: ${{ steps.build.outputs.build_tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11 --activate
+      - name: Get pnpm store
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+      # Cache the pnpm store, then install to recreate node_modules on each runner.
+      - name: Cache pnpm
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build
+        id: build
+        run: |
+          pnpm run build
+          echo "build_tag=v1.2.0" >> "$GITHUB_OUTPUT"
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ steps.build.outputs.build_tag }}
+          path: dist/
+          if-no-files-found: error
+
+  deploy:
+    needs: [ build ]
+    if: success() && needs.build.outputs.build_tag != ''
+    runs-on: ubuntu-latest
+    environment: prod
+    env:
+      QDRANT_URL: ${{ vars.QDRANT_URL }}
+      QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+      QDRANT_COLLECTION: ${{ secrets.QDRANT_COLLECTION }}
+      EMBEDDING_PROVIDER: ${{ secrets.EMBEDDING_PROVIDER }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GROQ_MODEL: ${{ secrets.GROQ_MODEL || 'openai/gpt-oss-120b' }}
+      PORT: ${{ secrets.PORT || '3000' }}
+      BUILD_TAG: ${{ needs.build.outputs.build_tag }}
+    outputs:
+      deployment_url: ${{ steps.deploy.outputs.deployment_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11 --activate
+      - name: Get pnpm store
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+      # Cache the pnpm store, then install to recreate node_modules on each runner.
+      - name: Cache pnpm
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Download build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ needs.build.outputs.build_tag }}
+          path: dist/
+      - name: Deploy example (local smoke check)
+        id: deploy
+        # Like secrets.yml, this starts the app only on the temporary runner.
+        # Run the downloaded build so this job checks what build produced.
+        run: |
+          echo "Deploying rag app $BUILD_TAG..."
+          node dist/server.js &
+          APP_PID=$!
+          trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
+          pnpm dlx wait-on --timeout 60000 "http://localhost:$PORT"
+          echo "deployment_url=http://localhost:$PORT" >> "$GITHUB_OUTPUT"
+      - name: Report deployment output
+        if: success()
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
+        run: echo "Smoke check passed for $BUILD_TAG at $DEPLOYMENT_URL"
+      - name: Failure diagnostics
+        if: failure()
+        run: echo "Deployment smoke check failed; check the prod configuration."
+      - name: Final status
+        if: always()
+        run: echo "Deployment example finished."
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11 --activate
+      - name: Get pnpm store
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+      # Cache the pnpm store, then install to recreate node_modules on each runner.
+      - name: Cache pnpm
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lint example
+        # Replace with pnpm run lint once package.json has a lint script.
+        run: echo "Lint placeholder - no lint script is configured yet."
