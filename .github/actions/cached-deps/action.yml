@@ -14,6 +14,5 @@ runs:
         path: ${{ env.STORE_PATH }}
         key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
     - name: Install dependencies
-      if: steps.cache-pnpm.outputs.cache-hit != 'true'
       shell: bash
       run: pnpm install --frozen-lockfile
