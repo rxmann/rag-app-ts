@@ -48,18 +48,8 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@11 --activate
-      - name: Get pnpm store
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
-      # Cache the pnpm store, then install to recreate node_modules on each runner.
-      - name: Cache pnpm
-        id: cache-pnpm
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-      - name: Install dependencies
-        if: steps.cache-pnpm.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile
+      - name: Load & Cache Dependencies
+        uses: ./.github/actions/cached-deps
       - name: Build
         id: build
         run: |
@@ -97,18 +87,8 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@11 --activate
-      - name: Get pnpm store
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
-      # Cache the pnpm store, then install to recreate node_modules on each runner.
-      - name: Cache pnpm
-        id: cache-pnpm
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-      - name: Install dependencies
-        if: steps.cache-pnpm.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile
+      - name: Load & Cache Dependencies
+        uses: ./.github/actions/cached-deps
       - name: Download build
         uses: actions/download-artifact@v4
         with:
@@ -148,18 +128,8 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@11 --activate
-      - name: Get pnpm store
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
-      # Cache the pnpm store, then install to recreate node_modules on each runner.
-      - name: Cache pnpm
-        id: cache-pnpm
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-      - name: Install dependencies
-        if: steps.cache-pnpm.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile
+      - name: Load & Cache Dependencies
+        uses: ./.github/actions/cached-deps
       - name: Lint example
         # Replace with pnpm run lint once package.json has a lint script.
         run: echo "Lint placeholder - no lint script is configured yet."
