@@ -1,14 +1,19 @@
 # GitHub discovers workflows only directly inside .github/workflows.
-# Move this file up one directory to enable manual runs; this is a workflow,
-# not a composite action definition (which would use action.yml and runs).
+# This file is already in the correct directory; it defines triggers and jobs.
+# The reusable step implementation lives in ../actions/cached-deps/action.yml.
 name: Composite CI/CD Example
+# Active lesson: run on pushes or manually (manual UI requires the default branch).
 on: [ push, workflow_dispatch ]
+# Read access is sufficient for checkout; prod settings belong to the deploy job.
 permissions:
   contents: read
+# Dependency chain: checks -> build -> deploy. Lint is independent.
+# Every job has a fresh runner, so each repeats checkout and tool setup.
 jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
+      # Checkout must precede uses: ./... so the local action exists on disk.
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -17,6 +22,7 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@11 --activate
+      # Composite actions run as steps on this job's runner; pnpm must exist first.
       - name: Load & Cache Dependencies
         uses: ./.github/actions/cached-deps
       - name: Typecheck
@@ -26,6 +32,7 @@ jobs:
         # package.json currently exits 1; remove tolerance once real tests exist.
         continue-on-error: true
         run: pnpm run test
+      # outcome is the raw result; conclusion becomes success after tolerance.
       - name: Report tolerated test failure
         if: steps.tests.outcome == 'failure'
         run: echo "The placeholder test failed; this example can continue."
@@ -34,9 +41,12 @@ jobs:
         run: echo "Dependency installation or typecheck failed."
 
   build:
+    # needs waits for checks and exposes its result; it does not share files.
     needs: [ checks ]
+    # Explicit for revision: this success gate is normally implicit.
     if: success()
     runs-on: ubuntu-latest
+    # Promote the build step output so deploy can read needs.build.outputs.
     outputs:
       build_tag: ${{ steps.build.outputs.build_tag }}
     steps:
@@ -55,6 +65,7 @@ jobs:
         run: |
           pnpm run build
           echo "build_tag=v1.2.0" >> "$GITHUB_OUTPUT"
+      # Outputs pass small values; artifacts carry dist/ between fresh runners.
       - name: Upload build
         uses: actions/upload-artifact@v4
         with:
@@ -64,8 +75,11 @@ jobs:
 
   deploy:
     needs: [ build ]
+    # Require a successful build and a nonempty version output.
     if: success() && needs.build.outputs.build_tag != ''
     runs-on: ubuntu-latest
+    # Selects environment variables/secrets and any configured protection rules.
+    # environment is different from env, which sets process environment values.
     environment: prod
     env:
       QDRANT_URL: ${{ vars.QDRANT_URL }}
@@ -76,6 +90,7 @@ jobs:
       GROQ_MODEL: ${{ secrets.GROQ_MODEL || 'openai/gpt-oss-120b' }}
       PORT: ${{ secrets.PORT || '3000' }}
       BUILD_TAG: ${{ needs.build.outputs.build_tag }}
+    # Available to a future job with needs: [deploy]; none consumes it here.
     outputs:
       deployment_url: ${{ steps.deploy.outputs.deployment_url }}
     steps:
@@ -98,6 +113,8 @@ jobs:
         id: deploy
         # Like secrets.yml, this starts the app only on the temporary runner.
         # Run the downloaded build so this job checks what build produced.
+        # & starts in the background; $! captures its PID; trap cleans up on exit.
+        # wait-on has a 60-second limit. This checks HTTP readiness, not RAG answers.
         run: |
           echo "Deploying rag app $BUILD_TAG..."
           node dist/server.js &
@@ -113,10 +130,12 @@ jobs:
       - name: Failure diagnostics
         if: failure()
         run: echo "Deployment smoke check failed; check the prod configuration."
+      # always() also permits reporting after failure or cancellation.
       - name: Final status
         if: always()
         run: echo "Deployment example finished."
 
+  # No needs: eligible to run alongside checks; deploy does not wait for lint.
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -131,6 +150,8 @@ jobs:
       - name: Load & Cache Dependencies
         uses: ./.github/actions/cached-deps
         with:
+          # Action inputs are strings: compare to 'true', not bare truthiness.
+          # Disables cache restore/save only; dependency installation still runs.
           pnpm-cache: 'false'
       - name: Lint example
         # Replace with pnpm run lint once package.json has a lint script.

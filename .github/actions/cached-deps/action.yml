@@ -1,24 +1,38 @@
+# Local composite action: call from a workflow step with uses: ./.github/actions/cached-deps.
+# Caller prerequisites: checkout, Node and pnpm setup in the same job.
 name: 'Cached Dependencies'
 description: 'Get the dependencies and cache them; pnpm.'
+# Composite action inputs are strings (unlike typed workflow_dispatch inputs).
 inputs:
   pnpm-cache:
     description: 'Whether to cache pnpm dependencies.'
     required: true
+    # Omission uses this default; required is metadata, not runtime validation.
     default: 'true'
+# Reuses steps, not jobs: no triggers, runs-on or fresh runner here.
 runs:
   using: 'composite'
   steps:
     - name: Get pnpm store
+      # Composite run steps must explicitly declare their shell.
       shell: bash
+      # GITHUB_ENV exposes STORE_PATH to later steps, including caller steps.
+      # It does not export a value to other jobs or create an action output.
       run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
     # Cache the pnpm store, then install to recreate node_modules on each runner.
     - name: Cache pnpm
       id: cache-pnpm
       uses: actions/cache@v4
+      # The string 'false' is truthy, so test the explicit string value.
       if: inputs.pnpm-cache == 'true'
       with:
         path: ${{ env.STORE_PATH }}
+        # Same OS + lockfile can reuse a store across jobs/runs (cache scope applies).
+        # A changed lockfile changes the key; no prefix restore-keys are used here.
         key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+    # Always install, even on a cache hit or when caching is disabled.
+    # The store is cached, not node_modules; frozen-lockfile prevents lock updates.
+    # On a miss, actions/cache saves the store after a successful job.
     - name: Install dependencies
       shell: bash
       run: pnpm install --frozen-lockfile
