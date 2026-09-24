@@ -130,6 +130,8 @@ jobs:
           corepack prepare pnpm@11 --activate
       - name: Load & Cache Dependencies
         uses: ./.github/actions/cached-deps
+        with:
+          pnpm-cache: 'true'
       - name: Lint example
         # Replace with pnpm run lint once package.json has a lint script.
         run: echo "Lint placeholder - no lint script is configured yet."
