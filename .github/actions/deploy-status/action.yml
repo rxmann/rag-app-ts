@@ -1,0 +1,41 @@
+# Custom JavaScript Action definition.
+# Unlike composite actions (using: 'composite'), a JavaScript action runs directly in Node.js
+# on the runner VM without spawning sub-shells for each step.
+# GitHub Actions runner executes this using the specified Node runtime (e.g. node20).
+name: 'Deploy Status & Verifier'
+description: 'Custom JavaScript action to verify deployment readiness, generate summary output, and handle secret tokens securely.'
+
+# Define action inputs.
+# GitHub Actions provides these to the JavaScript runtime as environment variables:
+# input 'app-name' becomes process.env['INPUT_APP-NAME'] (or uppercase with underscores).
+inputs:
+  app-name:
+    description: 'Name of the application being verified'
+    required: true
+    default: 'rag-app'
+  deployment-url:
+    description: 'URL where the application is deployed or smoke-tested'
+    required: true
+  auth-token:
+    description: 'Optional authentication or verification token (demonstrates secret handling)'
+    required: false
+    default: ''
+  environment:
+    description: 'Deployment target environment (e.g. prod, staging, preview)'
+    required: false
+    default: 'prod'
+
+# Define action outputs.
+# The JavaScript code registers outputs by appending "name=value" lines to process.env.GITHUB_OUTPUT.
+outputs:
+  status:
+    description: 'Overall verification status (e.g. healthy, verified)'
+  release-id:
+    description: 'Unique release identifier constructed by the JS action'
+  summary:
+    description: 'Formatted summary report string for logging or notifications'
+
+# JavaScript actions declare the runtime version and entrypoint file.
+runs:
+  using: 'node20'
+  main: 'index.js'

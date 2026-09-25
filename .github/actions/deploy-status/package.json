@@ -1,0 +1,8 @@
+{
+  "name": "deploy-status-action",
+  "version": "1.0.0",
+  "description": "Custom JavaScript action for deployment status and verification",
+  "main": "index.js",
+  "type": "module",
+  "private": true
+}

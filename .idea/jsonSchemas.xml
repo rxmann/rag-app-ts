@@ -57,6 +57,15 @@
                   <Item>
                     <option name="path" value=".github/workflows/outputs.yml" />
                   </Item>
+                  <Item>
+                    <option name="path" value=".github/workflows/containers.yml" />
+                  </Item>
+                  <Item>
+                    <option name="path" value=".github/workflows/composite-action.yml" />
+                  </Item>
+                  <Item>
+                    <option name="path" value=".github/workflows/javascript-action.yml" />
+                  </Item>
                 </list>
               </option>
             </SchemaInfo>

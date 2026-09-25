@@ -1,18 +1,18 @@
 # GitHub discovers workflows only directly inside .github/workflows.
-# This file is already in the correct directory; it defines triggers and jobs.
-# The reusable step implementation lives in ../actions/cached-deps/action.yml.
-name: Composite CI/CD Example
-on: [ workflow_dispatch ]
+# This workflow demonstrates executing a custom JavaScript Action defined in .github/actions/deploy-status.
+name: JavaScript Custom Action Example
+# Active lesson: run on pushes or manually (manual UI requires the default branch).
+on: [ push, workflow_dispatch ]
 # Read access is sufficient for checkout; prod settings belong to the deploy job.
 permissions:
   contents: read
-# Dependency chain: checks -> build -> deploy. Lint is independent.
-# Every job has a fresh runner, so each repeats checkout and tool setup.
+
+# Dependency chain: checks -> build -> deploy.
+# Every job starts on a fresh runner VM.
 jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      # Checkout must precede uses: ./... so the local action exists on disk.
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -21,17 +21,17 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@11 --activate
-      # Composite actions run as steps on this job's runner; pnpm must exist first.
+      # Composite action reuses cached dependency setup.
       - name: Load & Cache Dependencies
         uses: ./.github/actions/cached-deps
       - name: Typecheck
         run: pnpm run typecheck
       - name: Test (placeholder script)
         id: tests
-        # package.json currently exits 1; remove tolerance once real tests exist.
+        # package.json currently exits 1; tolerate failure for demonstration.
         continue-on-error: true
         run: pnpm run test
-      # outcome is the raw result; conclusion becomes success after tolerance.
+      # Outcome is raw result before tolerance; conclusion is final status.
       - name: Report tolerated test failure
         if: steps.tests.outcome == 'failure'
         run: echo "The placeholder test failed; this example can continue."
@@ -40,12 +40,10 @@ jobs:
         run: echo "Dependency installation or typecheck failed."
 
   build:
-    # needs waits for checks and exposes its result; it does not share files.
     needs: [ checks ]
-    # Explicit for revision: this success gate is normally implicit.
     if: success()
     runs-on: ubuntu-latest
-    # Promote the build step output so deploy can read needs.build.outputs.
+    # Promote the step output to a job output for downstream jobs.
     outputs:
       build_tag: ${{ steps.build.outputs.build_tag }}
     steps:
@@ -64,7 +62,7 @@ jobs:
         run: |
           pnpm run build
           echo "build_tag=v1.2.0" >> "$GITHUB_OUTPUT"
-      # Outputs pass small values; artifacts carry dist/ between fresh runners.
+      # Upload compiled dist/ directory as an artifact.
       - name: Upload build
         uses: actions/upload-artifact@v4
         with:
@@ -74,11 +72,9 @@ jobs:
 
   deploy:
     needs: [ build ]
-    # Require a successful build and a nonempty version output.
     if: success() && needs.build.outputs.build_tag != ''
     runs-on: ubuntu-latest
-    # Selects environment variables/secrets and any configured protection rules.
-    # environment is different from env, which sets process environment values.
+    # Selects environment secrets/variables and deployment protection rules.
     environment: prod
     env:
       QDRANT_URL: ${{ vars.QDRANT_URL }}
@@ -89,10 +85,11 @@ jobs:
       GROQ_MODEL: ${{ secrets.GROQ_MODEL || 'openai/gpt-oss-120b' }}
       PORT: ${{ secrets.PORT || '3000' }}
       BUILD_TAG: ${{ needs.build.outputs.build_tag }}
-    # Available to a future job with needs: [deploy]; none consumes it here.
     outputs:
-      deployment_url: ${{ steps.deploy.outputs.deployment_url }}
+      release_id: ${{ steps.verify_deploy.outputs.release-id }}
+      deploy_status: ${{ steps.verify_deploy.outputs.status }}
     steps:
+      # Checkout is required first so the local JavaScript action exists on the runner filesystem.
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -110,10 +107,7 @@ jobs:
           path: dist/
       - name: Deploy example (local smoke check)
         id: deploy
-        # Like secrets.yml, this starts the app only on the temporary runner.
-        # Run the downloaded build so this job checks what build produced.
-        # & starts in the background; $! captures its PID; trap cleans up on exit.
-        # wait-on has a 60-second limit. This checks HTTP readiness, not RAG answers.
+        # Run the downloaded build in background and verify HTTP readiness.
         run: |
           echo "Deploying rag app $BUILD_TAG..."
           node dist/server.js &
@@ -121,37 +115,35 @@ jobs:
           trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
           pnpm dlx wait-on --timeout 60000 "http://localhost:$PORT"
           echo "deployment_url=http://localhost:$PORT" >> "$GITHUB_OUTPUT"
-      - name: Report deployment output
+
+      # --- CUSTOM JAVASCRIPT ACTION STEP ---
+      # Runs directly via Node.js on the runner VM as configured in action.yml (runs.using: 'node20').
+      # Inputs are passed via 'with:'; secrets are safely passed and masked inside the JS action.
+      - name: Verify Deployment with Custom JS Action
+        id: verify_deploy
+        uses: ./.github/actions/deploy-status
+        with:
+          app-name: 'rag-app'
+          deployment-url: ${{ steps.deploy.outputs.deployment_url || format('http://localhost:{0}', env.PORT) }}
+          auth-token: ${{ secrets.DEMO_TOKEN || secrets.GROQ_API_KEY }}
+          environment: 'prod'
+
+      # Downstream step consuming outputs produced by the JavaScript action.
+      - name: Report JS Action Outputs
         if: success()
         env:
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
-        run: echo "Smoke check passed for $BUILD_TAG at $DEPLOYMENT_URL"
+          STATUS: ${{ steps.verify_deploy.outputs.status }}
+          RELEASE_ID: ${{ steps.verify_deploy.outputs.release-id }}
+          SUMMARY: ${{ steps.verify_deploy.outputs.summary }}
+        run: |
+          echo "Status output:    $STATUS"
+          echo "Release ID:       $RELEASE_ID"
+          echo "Summary output:   $SUMMARY"
+
       - name: Failure diagnostics
         if: failure()
-        run: echo "Deployment smoke check failed; check the prod configuration."
-      # always() also permits reporting after failure or cancellation.
+        run: echo "Deployment or JS action verification failed."
+
       - name: Final status
         if: always()
-        run: echo "Deployment example finished."
-
-  # No needs: eligible to run alongside checks; deploy does not wait for lint.
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: Setup pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@11 --activate
-      - name: Load & Cache Dependencies
-        uses: ./.github/actions/cached-deps
-        with:
-          # Action inputs are strings: compare to 'true', not bare truthiness.
-          # Disables cache restore/save only; dependency installation still runs.
-          pnpm-cache: 'false'
-      - name: Lint example
-        # Replace with pnpm run lint once package.json has a lint script.
-        run: echo "Lint placeholder - no lint script is configured yet."
+        run: echo "JavaScript action workflow finished."

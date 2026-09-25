@@ -15,10 +15,12 @@ GitHub Actions runs automation defined in `.github/workflows/*.yml`. Common uses
 | [matrix.yml](matrix.yml) | Combinations, `include`, `exclude`, job failure tolerance |
 | [reusable.yml](reusable.yml) + [reuse-example.yml](reuse-example.yml) | Reusable workflow inputs, secrets, outputs and caller |
 | [containers.yml](containers.yml) | Job containers, service containers, host-to-service and container-to-service networking |
+| [composite-action.yml](composite-action.yml) + [cached-deps/action.yml](../actions/cached-deps/action.yml) | Composite custom action (`using: 'composite'`), step bundling, input parameters, explicit shells |
+| [javascript-action.yml](javascript-action.yml) + [deploy-status/action.yml](../actions/deploy-status/action.yml) | JavaScript custom action (`using: 'node20'`), `INPUT_*` env mapping, `$GITHUB_OUTPUT`, secret masking (`::add-mask::`) |
 
 ## Running the lessons
 
-Only **reuse-example.yml**, the active topic, runs on `push`; it also supports manual runs. Other standalone examples use `workflow_dispatch`. The reusable definition uses only `workflow_call`. Move the `push` trigger when switching the active topic.
+Only **javascript-action.yml**, the active topic, runs on `push`; it also supports manual runs. Other standalone examples use `workflow_dispatch`. The reusable definition uses only `workflow_call`. Move the `push` trigger when switching the active topic.
 
 For a manual run, open **Actions → workflow → Run workflow**, select a branch, and supply any inputs. The workflow must exist on the default branch for manual triggering to be available. Use the workflow file path to distinguish the two older workflows named `CI`.
 
@@ -178,6 +180,37 @@ A local reference (`./.github/workflows/reusable.yml`) uses the caller's commit.
 - **Service health checks:** Use `options` on service definitions (e.g. `--health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5`) so GitHub Actions blocks step execution until the service container is healthy and ready to accept connections.
 - **Docker network lifecycle:** GitHub Actions automatically creates a shared Docker bridge network for the job when service containers or job containers are declared, and cleans them up after the job finishes.
 
+## Custom actions: Composite vs JavaScript
+
+Custom actions package reusable logic into steps invoked with `uses: ./.github/actions/<name>` (or published action references).
+
+### Composite Actions (`using: 'composite'`)
+
+[composite-action.yml](composite-action.yml) consumes the local composite action in [.github/actions/cached-deps/action.yml](../actions/cached-deps/action.yml).
+
+- **Purpose:** Group multiple sequential `run` or `uses` steps into a single reusable action.
+- **Inputs:** Declared under `inputs:`; all composite action inputs are received as strings.
+- **Execution:** Runs directly within the caller step's runner environment. Each `run:` step inside a composite action **must** explicitly define `shell:` (e.g., `shell: bash`).
+- **Scope:** Reuses steps within a job; does not create a new runner VM or job boundary.
+
+### JavaScript Custom Actions (`using: 'node20'`)
+
+[javascript-action.yml](javascript-action.yml) consumes the local JavaScript action in [.github/actions/deploy-status/action.yml](../actions/deploy-status/action.yml).
+
+- **Execution:** Runs directly via the runner's built-in Node.js runtime (`using: 'node20'`, `main: 'index.js'`) without launching intermediate sub-shells for each step.
+- **Inputs:** Passed under `with:`. GitHub Actions exposes inputs to Node.js as uppercase environment variables prefixed with `INPUT_` (e.g., `with: { app-name: 'rag-app' }` becomes `process.env['INPUT_APP-NAME']` / `process.env.INPUT_APP_NAME`).
+- **Outputs:** Declared under `outputs:`. JavaScript sets outputs by writing `name=value\n` to the file path in `process.env.GITHUB_OUTPUT`. Downstream steps consume them via `${{ steps.<id>.outputs.<name> }}`.
+- **Secret handling & log masking:** Secrets passed to the action (via `with:` or `env:`) can be registered with the runner's masking engine using workflow commands (`process.stdout.write('::add-mask::' + secret + '\n')` or `@actions/core.setSecret`). Once masked, GitHub Actions automatically replaces all occurrences of the secret with `***` in log outputs.
+- **Failure handling:** Emitting `::error::<message>` and setting `process.exitCode = 1` (or `@actions/core.setFailed`) flags the step as failed and surfaces error annotations in the Actions UI.
+
+### Abstraction comparison
+
+| Abstraction | Scope | Execution Model | Ideal For |
+| --- | --- | --- | --- |
+| **Reusable Workflow** (`workflow_call`) | Entire jobs across runners | Spawns separate runner VMs per job | Standardizing end-to-end CI/CD release pipelines |
+| **Composite Action** (`using: 'composite'`) | Step collection within a job | Executes shell commands in caller runner | Reusable multi-step setup scripts (caching, toolchains) |
+| **JavaScript Action** (`using: 'node20'`) | Single step with rich logic | Executes directly on runner Node.js engine | Complex API interactions, validation, secret masking |
+
 ## Quick revision
 
 - Order jobs with `needs`; transfer values with outputs and files with artifacts.
@@ -185,4 +218,5 @@ A local reference (`./.github/workflows/reusable.yml`) uses the caller's commit.
 - Use `if` to choose whether work runs and `continue-on-error` to tolerate a failure.
 - Use a matrix to vary configurations and a reusable workflow to share job logic.
 - Use container jobs for custom execution environments and service containers for dependencies, noting host-to-service (`localhost`) vs container-to-service (service name) networking.
+- Use composite actions to bundle repetitive shell steps, and JavaScript custom actions for advanced programmatic logic with typed inputs, outputs, and secret masking.
 - Keep `push` on the active lesson and manual triggers on completed standalone lessons.
